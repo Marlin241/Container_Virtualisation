@@ -84,8 +84,8 @@ git commit -m "chore: add root .gitignore"
 ```
 fastapi==0.111.0
 uvicorn[standard]==0.30.1
-sqlalchemy==2.0.30
-psycopg2-binary==2.9.9
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.10
 pydantic[email]==2.7.1
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
@@ -95,6 +95,8 @@ httpx==0.27.0
 ```
 
 Note: `bcrypt` is pinned explicitly (not left to `passlib[bcrypt]`'s own resolution) because `passlib==1.7.4` reads `bcrypt.__about__.__version__` to detect the backend version, an attribute removed in `bcrypt>=4.1`. Without this pin, pip installs the latest `bcrypt`, and every `hash_password`/`verify_password` call still works but logs a `(trapped) error reading bcrypt version` warning — `bcrypt==4.0.1` is the newest release that still has `__about__`, so hashing works with zero warnings and pristine test output.
+
+Note: `sqlalchemy==2.0.36` and `psycopg2-binary==2.9.10` (rather than `2.0.30`/`2.9.9`) are the earliest patch releases with prebuilt wheels for Python 3.13 — this task's `pip install -r requirements.txt` runs in whatever local Python the implementer has, which may be 3.13, while the Docker image (Task 5) pins `python:3.12-slim` regardless. Both versions stay within the same SQLAlchemy 2.0.x / psycopg2 2.9.x line the plan targets.
 
 - [ ] **Step 2: Create `app/__init__.py`** (empty file)
 
@@ -656,8 +658,8 @@ git commit -m "feat(users-service): add Dockerfile"
 ```
 fastapi==0.111.0
 uvicorn[standard]==0.30.1
-sqlalchemy==2.0.30
-psycopg2-binary==2.9.9
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.10
 pydantic==2.7.1
 python-jose[cryptography]==3.3.0
 pytest==8.2.0
@@ -1260,8 +1262,8 @@ git commit -m "feat(books-service): add availability endpoint and Dockerfile"
 ```
 fastapi==0.111.0
 uvicorn[standard]==0.30.1
-sqlalchemy==2.0.30
-psycopg2-binary==2.9.9
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.10
 pydantic==2.7.1
 python-jose[cryptography]==3.3.0
 httpx==0.27.0
