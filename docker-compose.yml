@@ -1,0 +1,58 @@
+services:
+  users-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: users_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - users_db_data:/var/lib/postgresql/data
+
+  books-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: books_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - books_db_data:/var/lib/postgresql/data
+
+  loans-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: loans_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - loans_db_data:/var/lib/postgresql/data
+
+  users-service:
+    build: ./users-service
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@users-db:5432/users_db
+      JWT_SECRET: ${JWT_SECRET:-devsecret}
+    depends_on:
+      - users-db
+
+  books-service:
+    build: ./books-service
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@books-db:5432/books_db
+      JWT_SECRET: ${JWT_SECRET:-devsecret}
+    depends_on:
+      - books-db
+
+  loans-service:
+    build: ./loans-service
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@loans-db:5432/loans_db
+      JWT_SECRET: ${JWT_SECRET:-devsecret}
+      BOOKS_SERVICE_URL: http://books-service:8000
+    depends_on:
+      - loans-db
+      - books-service
+
+volumes:
+  users_db_data:
+  books_db_data:
+  loans_db_data:
