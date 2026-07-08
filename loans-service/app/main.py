@@ -40,3 +40,31 @@ def borrow_book(
     db.commit()
     db.refresh(loan)
     return loan
+
+
+@app.patch("/loans/{loan_id}/return", response_model=schemas.LoanOut)
+def return_book(
+    loan_id: int,
+    request: Request,
+    payload: dict = Depends(get_current_payload),
+    db: Session = Depends(get_db),
+):
+    loan = db.query(models.Loan).filter(models.Loan.id == loan_id).first()
+    if not loan:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Loan not found")
+    if loan.status == models.LoanStatus.RETOURNE:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Loan already returned")
+
+    auth_header = request.headers["authorization"]
+    try:
+        clients.update_book_availability(loan.book_id, 1, auth_header)
+    except clients.BooksServiceUnavailable:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Books service unavailable")
+    except (clients.BookNotFound, clients.BookUnavailable):
+        pass
+
+    loan.status = models.LoanStatus.RETOURNE
+    loan.returned_at = datetime.utcnow()
+    db.commit()
+    db.refresh(loan)
+    return loan
