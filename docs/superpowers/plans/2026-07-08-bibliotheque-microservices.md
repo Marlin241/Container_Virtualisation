@@ -1945,11 +1945,15 @@ server {
     }
 
     location / {
-        proxy_pass http://frontend:80;
+        resolver 127.0.0.11 valid=10s;
+        set $frontend_upstream http://frontend:80;
+        proxy_pass $frontend_upstream;
         proxy_set_header Host $host;
     }
 }
 ```
+
+Note: `location /`'s `proxy_pass` target is written as a variable (`$frontend_upstream`) with an explicit `resolver` directive, not a static `proxy_pass http://frontend:80;`. This matters because nginx resolves a static hostname in `proxy_pass` once, at config load time — and at this point in the plan, the `frontend` service doesn't exist yet in `docker-compose.yml` (Task 16 adds it), so there's no DNS entry for it and nginx fails to start at all (`host not found in upstream "frontend"`), taking down the already-working `/api/*` routes too. Routing the hostname through a variable forces nginx to resolve it per-request via Docker's embedded DNS server (`127.0.0.11`) instead, so a missing or not-yet-running `frontend` just means `/` 502s on request rather than crashing the whole container — and this remains correct (and arguably more robust, surviving `frontend` container restarts without an nginx reload) once Task 16 adds the `frontend` service. The four `/api/*` blocks don't need this treatment: `users-service`, `books-service`, and `loans-service` already exist as Compose service keys by this task, so their DNS names resolve fine at gateway startup.
 
 - [ ] **Step 2: Add the `gateway` service to `docker-compose.yml`** (insert after `loans-service`, before `volumes:`)
 
