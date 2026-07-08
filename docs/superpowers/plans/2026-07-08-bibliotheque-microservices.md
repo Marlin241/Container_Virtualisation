@@ -1810,6 +1810,11 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - users_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   books-db:
     image: postgres:16
@@ -1819,6 +1824,11 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - books_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   loans-db:
     image: postgres:16
@@ -1828,6 +1838,11 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - loans_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   users-service:
     build: ./users-service
@@ -1835,7 +1850,8 @@ services:
       DATABASE_URL: postgresql+psycopg2://postgres:postgres@users-db:5432/users_db
       JWT_SECRET: ${JWT_SECRET:-devsecret}
     depends_on:
-      - users-db
+      users-db:
+        condition: service_healthy
 
   books-service:
     build: ./books-service
@@ -1843,7 +1859,8 @@ services:
       DATABASE_URL: postgresql+psycopg2://postgres:postgres@books-db:5432/books_db
       JWT_SECRET: ${JWT_SECRET:-devsecret}
     depends_on:
-      - books-db
+      books-db:
+        condition: service_healthy
 
   loans-service:
     build: ./loans-service
@@ -1852,14 +1869,18 @@ services:
       JWT_SECRET: ${JWT_SECRET:-devsecret}
       BOOKS_SERVICE_URL: http://books-service:8000
     depends_on:
-      - loans-db
-      - books-service
+      loans-db:
+        condition: service_healthy
+      books-service:
+        condition: service_started
 
 volumes:
   users_db_data:
   books_db_data:
   loans_db_data:
 ```
+
+Note: each `*-db` service gets a `pg_isready` healthcheck, and every backend service's `depends_on` waits on `condition: service_healthy` for its own database (not just container-started). Without this, `docker compose up -d --build` races the FastAPI `lifespan` handler's `Base.metadata.create_all` against Postgres's cold-init time — confirmed by direct test: on a fresh `docker compose up`, `users-service` and `loans-service` exited (code 3) because they tried to connect before Postgres was accepting connections yet, and neither self-recovered (no `restart` policy), leaving the stack silently half-up. The healthcheck-gated `depends_on` makes a single `docker compose up -d --build` reliably bring up the whole stack, matching this project's hard requirement. `loans-service` additionally depends on `books-service` with `condition: service_started` (not `service_healthy` — `books-service` has no HTTP-level healthcheck defined, container-started is sufficient here since `loans-service` only calls it lazily on the first borrow/return request, by which point it will be up).
 
 - [ ] **Step 2: Bring up the backend stack and verify end-to-end through real Postgres**
 
