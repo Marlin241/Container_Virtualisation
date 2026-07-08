@@ -88,3 +88,60 @@ def test_delete_book_as_admin(client, auth_header):
     assert response.status_code == 204
     response = client.get(f"/books/{book['id']}", headers=auth_header())
     assert response.status_code == 404
+
+
+def test_update_book_requires_admin_role(client, auth_header):
+    book = create_sample_book(client, auth_header)
+    response = client.put(
+        f"/books/{book['id']}",
+        json={"title": "Updated Title", "author": "Robert C. Martin", "isbn": "111", "total_copies": 3},
+        headers=auth_header(role="ETUDIANT"),
+    )
+    assert response.status_code == 403
+
+
+def test_delete_book_requires_admin_role(client, auth_header):
+    book = create_sample_book(client, auth_header)
+    response = client.delete(f"/books/{book['id']}", headers=auth_header(role="ETUDIANT"))
+    assert response.status_code == 403
+
+
+def test_update_book_duplicate_isbn_rejected(client, auth_header):
+    book1 = create_sample_book(client, auth_header, isbn="111")
+    create_sample_book(client, auth_header, isbn="222", title="Another Book")
+    response = client.put(
+        f"/books/{book1['id']}",
+        json={"title": "Clean Code Updated", "author": "Robert C. Martin", "isbn": "222", "total_copies": 3},
+        headers=auth_header(role="PERSONNEL_ADMIN"),
+    )
+    assert response.status_code == 400
+
+
+def test_update_book_preserves_borrowed_copies(client, auth_header, db=None):
+    from tests.conftest import TestingSessionLocal
+
+    book = create_sample_book(client, auth_header, isbn="111", title="Clean Code")
+
+    # Simulate borrowed copies by directly updating the DB
+    db_session = TestingSessionLocal()
+    try:
+        from app.models import Book
+        book_row = db_session.query(Book).filter(Book.id == book["id"]).first()
+        # Simulate 1 borrowed copy: set available_copies to total_copies - 1
+        book_row.available_copies = book["total_copies"] - 1
+        db_session.commit()
+    finally:
+        db_session.close()
+
+    # Update the book with a new total_copies value
+    response = client.put(
+        f"/books/{book['id']}",
+        json={"title": "Clean Code 2nd Ed", "author": "Robert C. Martin", "isbn": "111", "total_copies": 5},
+        headers=auth_header(role="PERSONNEL_ADMIN"),
+    )
+
+    assert response.status_code == 200
+    updated_book = response.json()
+    # With 1 borrowed copy and new total_copies=5, available should be 5 - 1 = 4
+    assert updated_book["available_copies"] == 4
+    assert updated_book["total_copies"] == 5

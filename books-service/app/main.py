@@ -80,6 +80,9 @@ def update_book(
     book = db.query(models.Book).filter(models.Book.id == book_id).first()
     if not book:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+    existing = db.query(models.Book).filter(models.Book.isbn == payload.isbn, models.Book.id != book_id).first()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ISBN already exists")
     borrowed = book.total_copies - book.available_copies
     book.title = payload.title
     book.author = payload.author
