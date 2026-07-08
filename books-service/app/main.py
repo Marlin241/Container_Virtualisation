@@ -42,3 +42,63 @@ def create_book(
 @app.get("/books", response_model=list[schemas.BookOut])
 def list_books(_: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
     return db.query(models.Book).all()
+
+
+@app.get("/books/search", response_model=list[schemas.BookOut])
+def search_books(
+    title: str | None = None,
+    author: str | None = None,
+    isbn: str | None = None,
+    _: dict = Depends(get_current_payload),
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.Book)
+    if title:
+        query = query.filter(models.Book.title.ilike(f"%{title}%"))
+    if author:
+        query = query.filter(models.Book.author.ilike(f"%{author}%"))
+    if isbn:
+        query = query.filter(models.Book.isbn == isbn)
+    return query.all()
+
+
+@app.get("/books/{book_id}", response_model=schemas.BookOut)
+def get_book(book_id: int, _: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
+    book = db.query(models.Book).filter(models.Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+    return book
+
+
+@app.put("/books/{book_id}", response_model=schemas.BookOut)
+def update_book(
+    book_id: int,
+    payload: schemas.BookUpdate,
+    _: dict = Depends(require_role("PERSONNEL_ADMIN")),
+    db: Session = Depends(get_db),
+):
+    book = db.query(models.Book).filter(models.Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+    borrowed = book.total_copies - book.available_copies
+    book.title = payload.title
+    book.author = payload.author
+    book.isbn = payload.isbn
+    book.total_copies = payload.total_copies
+    book.available_copies = max(payload.total_copies - borrowed, 0)
+    db.commit()
+    db.refresh(book)
+    return book
+
+
+@app.delete("/books/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_book(
+    book_id: int,
+    _: dict = Depends(require_role("PERSONNEL_ADMIN")),
+    db: Session = Depends(get_db),
+):
+    book = db.query(models.Book).filter(models.Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+    db.delete(book)
+    db.commit()
