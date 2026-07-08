@@ -86,7 +86,7 @@ fastapi==0.111.0
 uvicorn[standard]==0.30.1
 sqlalchemy==2.0.36
 psycopg2-binary==2.9.10
-pydantic[email]==2.7.1
+pydantic[email]==2.9.2
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
@@ -96,7 +96,7 @@ httpx==0.27.0
 
 Note: `bcrypt` is pinned explicitly (not left to `passlib[bcrypt]`'s own resolution) because `passlib==1.7.4` reads `bcrypt.__about__.__version__` to detect the backend version, an attribute removed in `bcrypt>=4.1`. Without this pin, pip installs the latest `bcrypt`, and every `hash_password`/`verify_password` call still works but logs a `(trapped) error reading bcrypt version` warning — `bcrypt==4.0.1` is the newest release that still has `__about__`, so hashing works with zero warnings and pristine test output.
 
-Note: `sqlalchemy==2.0.36` and `psycopg2-binary==2.9.10` (rather than `2.0.30`/`2.9.9`) are the earliest patch releases with prebuilt wheels for Python 3.13 — this task's `pip install -r requirements.txt` runs in whatever local Python the implementer has, which may be 3.13, while the Docker image (Task 5) pins `python:3.12-slim` regardless. Both versions stay within the same SQLAlchemy 2.0.x / psycopg2 2.9.x line the plan targets.
+Note: `sqlalchemy==2.0.36`, `psycopg2-binary==2.9.10`, and `pydantic[email]==2.9.2` (rather than `2.0.30`/`2.9.9`/`2.7.1`) are pinned to versions with prebuilt wheels for Python 3.13 — this task's `pip install -r requirements.txt` runs in whatever local Python the implementer has, which may be 3.13, while the Docker image (Task 5) pins `python:3.12-slim` regardless. `pydantic==2.7.1` in particular does not just warn on 3.13, it fails outright: `pydantic-core`'s Rust extension has no cp313 wheel at that version and its pinned `pyo3` cannot build against 3.13 (`the configured Python interpreter version (3.13) is newer than PyO3's maximum supported version`), so `pip install` errors out completely rather than degrading gracefully. All three pins stay within the same major/minor line the plan targets (SQLAlchemy 2.0.x, psycopg2 2.9.x, Pydantic 2.x).
 
 - [ ] **Step 2: Create `app/__init__.py`** (empty file)
 
@@ -660,7 +660,7 @@ fastapi==0.111.0
 uvicorn[standard]==0.30.1
 sqlalchemy==2.0.36
 psycopg2-binary==2.9.10
-pydantic==2.7.1
+pydantic==2.9.2
 python-jose[cryptography]==3.3.0
 pytest==8.2.0
 httpx==0.27.0
@@ -1264,7 +1264,7 @@ fastapi==0.111.0
 uvicorn[standard]==0.30.1
 sqlalchemy==2.0.36
 psycopg2-binary==2.9.10
-pydantic==2.7.1
+pydantic==2.9.2
 python-jose[cryptography]==3.3.0
 httpx==0.27.0
 pytest==8.2.0
