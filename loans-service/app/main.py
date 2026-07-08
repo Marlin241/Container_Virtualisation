@@ -68,3 +68,18 @@ def return_book(
     db.commit()
     db.refresh(loan)
     return loan
+
+
+@app.get("/loans", response_model=list[schemas.LoanOut])
+def list_loans(
+    user_id: int | None = None,
+    payload: dict = Depends(get_current_payload),
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.Loan)
+    if payload.get("role") == "PERSONNEL_ADMIN":
+        if user_id is not None:
+            query = query.filter(models.Loan.user_id == user_id)
+    else:
+        query = query.filter(models.Loan.user_id == int(payload["sub"]))
+    return query.all()

@@ -64,3 +64,37 @@ def test_return_already_returned_loan_rejected(client, auth_header):
         client.patch(f"/loans/{loan_id}/return", headers=auth_header(user_id=1))
         response = client.patch(f"/loans/{loan_id}/return", headers=auth_header(user_id=1))
     assert response.status_code == 409
+
+
+def test_list_loans_filters_by_user_for_non_admin(client, auth_header):
+    with patch("app.main.clients.update_book_availability"):
+        client.post("/loans", json={"book_id": 1}, headers=auth_header(user_id=1))
+        client.post("/loans", json={"book_id": 2}, headers=auth_header(user_id=2))
+
+    response = client.get("/loans", headers=auth_header(user_id=1))
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["user_id"] == 1
+
+
+def test_list_loans_admin_sees_all(client, auth_header):
+    with patch("app.main.clients.update_book_availability"):
+        client.post("/loans", json={"book_id": 1}, headers=auth_header(user_id=1))
+        client.post("/loans", json={"book_id": 2}, headers=auth_header(user_id=2))
+
+    response = client.get("/loans", headers=auth_header(user_id=99, role="PERSONNEL_ADMIN"))
+    assert response.status_code == 200
+    assert len(response.json()) == 2
+
+
+def test_list_loans_admin_can_filter_by_user_id(client, auth_header):
+    with patch("app.main.clients.update_book_availability"):
+        client.post("/loans", json={"book_id": 1}, headers=auth_header(user_id=1))
+        client.post("/loans", json={"book_id": 2}, headers=auth_header(user_id=2))
+
+    response = client.get("/loans?user_id=2", headers=auth_header(user_id=99, role="PERSONNEL_ADMIN"))
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["user_id"] == 2
