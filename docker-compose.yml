@@ -7,6 +7,11 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - users_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   books-db:
     image: postgres:16
@@ -16,6 +21,11 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - books_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   loans-db:
     image: postgres:16
@@ -25,6 +35,11 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - loans_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   users-service:
     build: ./users-service
@@ -32,7 +47,8 @@ services:
       DATABASE_URL: postgresql+psycopg2://postgres:postgres@users-db:5432/users_db
       JWT_SECRET: ${JWT_SECRET:-devsecret}
     depends_on:
-      - users-db
+      users-db:
+        condition: service_healthy
 
   books-service:
     build: ./books-service
@@ -40,7 +56,8 @@ services:
       DATABASE_URL: postgresql+psycopg2://postgres:postgres@books-db:5432/books_db
       JWT_SECRET: ${JWT_SECRET:-devsecret}
     depends_on:
-      - books-db
+      books-db:
+        condition: service_healthy
 
   loans-service:
     build: ./loans-service
@@ -49,8 +66,10 @@ services:
       JWT_SECRET: ${JWT_SECRET:-devsecret}
       BOOKS_SERVICE_URL: http://books-service:8000
     depends_on:
-      - loans-db
-      - books-service
+      loans-db:
+        condition: service_healthy
+      books-service:
+        condition: service_started
 
 volumes:
   users_db_data:
