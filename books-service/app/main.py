@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, status
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from . import models, schemas
@@ -117,10 +118,20 @@ def update_availability(
     book = db.query(models.Book).filter(models.Book.id == book_id).first()
     if not book:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
-    new_available = book.available_copies + payload.delta
-    if new_available < 0 or new_available > book.total_copies:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Book not available")
-    book.available_copies = new_available
+
+    result = db.execute(
+        update(models.Book)
+        .where(
+            models.Book.id == book_id,
+            models.Book.available_copies + payload.delta >= 0,
+            models.Book.available_copies + payload.delta <= models.Book.total_copies,
+        )
+        .values(available_copies=models.Book.available_copies + payload.delta)
+    )
     db.commit()
+
+    if result.rowcount == 0:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Book not available")
+
     db.refresh(book)
     return book
