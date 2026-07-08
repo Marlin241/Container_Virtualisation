@@ -86,7 +86,18 @@ services:
       - books-service
       - loans-service
 
+  jenkins:
+    build: ./jenkins
+    ports:
+      - "8080:8080"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      - "989"
+
 volumes:
   users_db_data:
   books_db_data:
   loans_db_data:
+  jenkins_home:
