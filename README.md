@@ -118,7 +118,7 @@ services:
   jenkins:
     # ...
     group_add:
-      - "YOUR_HOST_DOCKER_GID"
+      - "VOTRE_GID_DOCKER"  # ex. "989" — remplacez par la valeur obtenue avec getent group docker
 ```
 
 Ensuite, redémarrez le conteneur :
