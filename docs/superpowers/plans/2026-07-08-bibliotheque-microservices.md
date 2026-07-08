@@ -89,9 +89,12 @@ psycopg2-binary==2.9.9
 pydantic[email]==2.7.1
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
 pytest==8.2.0
 httpx==0.27.0
 ```
+
+Note: `bcrypt` is pinned explicitly (not left to `passlib[bcrypt]`'s own resolution) because `passlib==1.7.4` reads `bcrypt.__about__.__version__` to detect the backend version, an attribute removed in `bcrypt>=4.1`. Without this pin, pip installs the latest `bcrypt`, and every `hash_password`/`verify_password` call still works but logs a `(trapped) error reading bcrypt version` warning — `bcrypt==4.0.1` is the newest release that still has `__about__`, so hashing works with zero warnings and pristine test output.
 
 - [ ] **Step 2: Create `app/__init__.py`** (empty file)
 
@@ -223,6 +226,8 @@ def decode_access_token(token: str) -> dict:
 - [ ] **Step 7: Create `app/main.py`** (registration endpoint only for now)
 
 ```python
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -230,9 +235,14 @@ from . import models, schemas
 from .database import Base, engine, get_db
 from .security import hash_password
 
-Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="users-service")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
+app = FastAPI(title="users-service", lifespan=lifespan)
 
 
 @app.post("/auth/register", response_model=schemas.UserOut, status_code=status.HTTP_201_CREATED)
@@ -252,6 +262,8 @@ def register(payload: schemas.UserCreate, db: Session = Depends(get_db)):
     db.refresh(user)
     return user
 ```
+
+Note: table creation runs inside a `lifespan` handler instead of at module import time. This matters because the default `DATABASE_URL` points at the real `users-db` Postgres host, which doesn't exist outside Docker Compose — if `Base.metadata.create_all(bind=engine)` ran at import time, `from app.main import app` would raise a connection error in any environment without that host resolvable (e.g. this task's own pytest run). Starlette's `TestClient(app)` only triggers `lifespan` when entered as a context manager (`with TestClient(app) as client:`); `tests/conftest.py` below instantiates it directly (`TestClient(app)`, no `with`), so `lifespan` never fires in tests and the production `create_all` is never attempted — table creation for tests is handled separately by the `setup_db` fixture against the SQLite test engine.
 
 - [ ] **Step 8: Create `tests/__init__.py`** (empty file)
 
@@ -786,6 +798,8 @@ def require_role(*roles: str):
 - [ ] **Step 8: Create `app/main.py`** (create + list only for now)
 
 ```python
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -793,9 +807,14 @@ from . import models, schemas
 from .database import Base, engine, get_db
 from .deps import get_current_payload, require_role
 
-Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="books-service")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
+app = FastAPI(title="books-service", lifespan=lifespan)
 
 
 @app.post("/books", response_model=schemas.BookOut, status_code=status.HTTP_201_CREATED)
@@ -1408,6 +1427,7 @@ def update_book_availability(book_id: int, delta: int, auth_header: str) -> None
 - [ ] **Step 9: Create `app/main.py`** (borrow endpoint only for now)
 
 ```python
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
@@ -1417,9 +1437,14 @@ from . import clients, models, schemas
 from .database import Base, engine, get_db
 from .deps import get_current_payload
 
-Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="loans-service")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
+app = FastAPI(title="loans-service", lifespan=lifespan)
 
 
 @app.post("/loans", response_model=schemas.LoanOut, status_code=status.HTTP_201_CREATED)
