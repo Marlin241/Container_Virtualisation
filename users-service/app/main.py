@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from . import models, schemas
 from .database import Base, engine, get_db
+from .deps import get_current_payload, require_role
 from .security import create_access_token, hash_password, verify_password
 
 
@@ -42,3 +43,26 @@ def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     token = create_access_token(user.id, user.role.value)
     return schemas.TokenResponse(access_token=token)
+
+
+@app.get("/users/me", response_model=schemas.UserOut)
+def read_me(payload: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.id == int(payload["sub"])).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return user
+
+
+@app.get("/users/{user_id}", response_model=schemas.UserOut)
+def read_user(user_id: int, payload: dict = Depends(get_current_payload), db: Session = Depends(get_db)):
+    if int(payload["sub"]) != user_id and payload.get("role") != "PERSONNEL_ADMIN":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed")
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return user
+
+
+@app.get("/users", response_model=list[schemas.UserOut])
+def list_users(payload: dict = Depends(require_role("PERSONNEL_ADMIN")), db: Session = Depends(get_db)):
+    return db.query(models.User).all()
