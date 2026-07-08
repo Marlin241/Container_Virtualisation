@@ -105,3 +105,22 @@ def delete_book(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
     db.delete(book)
     db.commit()
+
+
+@app.patch("/books/{book_id}/availability", response_model=schemas.BookOut)
+def update_availability(
+    book_id: int,
+    payload: schemas.AvailabilityUpdate,
+    _: dict = Depends(get_current_payload),
+    db: Session = Depends(get_db),
+):
+    book = db.query(models.Book).filter(models.Book.id == book_id).first()
+    if not book:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+    new_available = book.available_copies + payload.delta
+    if new_available < 0 or new_available > book.total_copies:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Book not available")
+    book.available_copies = new_available
+    db.commit()
+    db.refresh(book)
+    return book

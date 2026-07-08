@@ -145,3 +145,35 @@ def test_update_book_preserves_borrowed_copies(client, auth_header, db=None):
     # With 1 borrowed copy and new total_copies=5, available should be 5 - 1 = 4
     assert updated_book["available_copies"] == 4
     assert updated_book["total_copies"] == 5
+
+
+def test_decrement_availability_succeeds(client, auth_header):
+    book = create_sample_book(client, auth_header)
+    response = client.patch(
+        f"/books/{book['id']}/availability",
+        json={"delta": -1},
+        headers=auth_header(),
+    )
+    assert response.status_code == 200
+    assert response.json()["available_copies"] == 1
+
+
+def test_decrement_availability_below_zero_rejected(client, auth_header):
+    book = create_sample_book(client, auth_header, isbn="222")
+    client.patch(f"/books/{book['id']}/availability", json={"delta": -1}, headers=auth_header())
+    client.patch(f"/books/{book['id']}/availability", json={"delta": -1}, headers=auth_header())
+    response = client.patch(f"/books/{book['id']}/availability", json={"delta": -1}, headers=auth_header())
+    assert response.status_code == 409
+
+
+def test_increment_availability_succeeds(client, auth_header):
+    book = create_sample_book(client, auth_header, isbn="333")
+    client.patch(f"/books/{book['id']}/availability", json={"delta": -1}, headers=auth_header())
+    response = client.patch(f"/books/{book['id']}/availability", json={"delta": 1}, headers=auth_header())
+    assert response.status_code == 200
+    assert response.json()["available_copies"] == 2
+
+
+def test_availability_update_unknown_book_returns_404(client, auth_header):
+    response = client.patch("/books/999/availability", json={"delta": -1}, headers=auth_header())
+    assert response.status_code == 404
