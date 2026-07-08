@@ -2639,12 +2639,27 @@ git commit -m "feat(frontend): add books, loans, profile, and users pages"
 
 **Files:**
 - Create: `frontend/Dockerfile`
+- Create: `frontend/nginx.conf`
 - Modify: `docker-compose.yml`
 
 **Interfaces:**
 - Produces: a `frontend` container serving the built React app on port 80, wired into `docker-compose.yml` and reachable through the `gateway`'s `location /` block (Task 13).
 
-- [ ] **Step 1: Create `frontend/Dockerfile`**
+- [ ] **Step 1: Create `frontend/nginx.conf`**
+
+```nginx
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files $uri /index.html;
+    }
+}
+```
+
+- [ ] **Step 2: Create `frontend/Dockerfile`**
 
 ```dockerfile
 FROM node:20-alpine AS build
@@ -2657,17 +2672,20 @@ RUN npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 ```
 
-- [ ] **Step 2: Add the `frontend` service to `docker-compose.yml`** (insert after `loans-service`, before `gateway`)
+Note: `frontend/nginx.conf` overrides the stock `nginx:alpine` default config with `try_files $uri /index.html;`. This is required because the app uses React Router's `BrowserRouter`, which relies on client-side JavaScript to render a route like `/login` — but a browser (or `curl`) requesting `/login` directly sends that literal path to nginx first. Without the fallback, nginx looks for a file at `/login` on disk, doesn't find one, and returns a bare 404 instead of serving `index.html` (which is what actually boots the React app and lets the router take over). `try_files` serves the matched static asset if one exists (JS/CSS bundles, favicon, etc.) and falls back to `index.html` for everything else, which is the standard pattern for any client-side-routed SPA served by a static file server.
+
+- [ ] **Step 3: Add the `frontend` service to `docker-compose.yml`** (insert after `loans-service`, before `gateway`)
 
 ```yaml
   frontend:
     build: ./frontend
 ```
 
-- [ ] **Step 3: Make `gateway` depend on `frontend`** — in the existing `gateway` service block, update `depends_on`:
+- [ ] **Step 4: Make `gateway` depend on `frontend`** (in the existing `gateway` service block, update `depends_on`)
 
 ```yaml
   gateway:
@@ -2683,7 +2701,7 @@ EXPOSE 80
       - loans-service
 ```
 
-- [ ] **Step 4: Full-stack manual verification**
+- [ ] **Step 5: Full-stack verification**
 
 Run:
 ```bash
@@ -2691,12 +2709,14 @@ docker compose up -d --build
 sleep 5
 ```
 
-Then open `http://localhost/register` in a browser: create a `PERSONNEL_ADMIN` account, log in at `http://localhost/login`, add a book on `http://localhost/books`, borrow it, then check `http://localhost/loans` shows the loan and `http://localhost/users` (as admin) lists the account. This is the golden-path walkthrough required before considering the stack complete — actually click through it, don't just curl.
+If you have a browser available, open `http://localhost/register`: create a `PERSONNEL_ADMIN` account, log in at `http://localhost/login`, add a book on `http://localhost/books`, borrow it, then check `http://localhost/loans` shows the loan and `http://localhost/users` (as admin) lists the account. This is the golden-path walkthrough required before considering the stack complete.
 
-- [ ] **Step 5: Commit**
+If no browser/display is available (e.g. a headless CI/agent environment), perform the equivalent verification by driving the same HTTP calls the frontend's JS would make, through the gateway on port 80: `POST /api/auth/register` (PERSONNEL_ADMIN), `POST /api/auth/login`, `POST /api/books` with the admin JWT, `POST /api/loans` to borrow it, `GET /api/loans` to confirm it shows up, `PATCH /api/loans/{id}/return`, and `GET /api/users` (as admin) to confirm the account is listed. Also curl `http://localhost/`, `http://localhost/login`, and `http://localhost/register` directly and confirm each returns `200` with the built `index.html` (not a 404) — this is what `frontend/nginx.conf`'s `try_files` fallback exists to guarantee.
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add frontend/Dockerfile docker-compose.yml
+git add frontend/Dockerfile frontend/nginx.conf docker-compose.yml
 git commit -m "feat(frontend): add Dockerfile and wire into docker-compose"
 ```
 
