@@ -10,7 +10,7 @@ jenkins:
       allowAnonymousRead: false
 
 jobs:
-  - script: >
+  - script: |
       pipelineJob('bibliotheque-microservices') {
         definition {
           cpsScm {

@@ -7,9 +7,21 @@ services:
       JENKINS_ADMIN_USER: ${JENKINS_ADMIN_USER:-admin}
       JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:-adminpass123}
       REPO_URL: ${REPO_URL:-https://github.com/Marlin241/Container_Virtualisation.git}
+      PROJECT_DIR: ${PROJECT_DIR:?PROJECT_DIR must be set in .env to the absolute host path of this checkout}
     volumes:
       - jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
+      # Bind-mount this checkout into the jenkins container at the SAME
+      # absolute path it has on the host. Jenkins runs `docker compose`
+      # against the HOST's Docker daemon (via the socket above), so relative
+      # paths in docker-compose.yml (e.g. ./gateway/nginx.conf) are resolved
+      # by the host daemon against whatever directory `docker compose` was
+      # invoked from - which must therefore be a real host path, not a path
+      # that only exists inside Jenkins' own container filesystem (e.g. a
+      # default workspace under the jenkins_home named volume). The Pipeline
+      # job (jenkins/casc.yaml) is configured with a matching customWorkspace
+      # so its checkout lands exactly here.
+      - "${PROJECT_DIR}:${PROJECT_DIR}"
     # GID of the host's "docker" group, needed so the jenkins user can use
     # the mounted /var/run/docker.sock. Run "getent group docker" on your
     # machine and set DOCKER_GID in .env if it isn't 989.
