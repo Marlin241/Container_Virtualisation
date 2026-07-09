@@ -9,7 +9,7 @@ Plateforme de gestion de bibliothèque pour le DIT, basée sur une architecture 
 - `loans-service` (FastAPI, port interne 8000) — emprunts/retours, historique. Appelle `books-service` en interne. DB : `loans-db` (PostgreSQL).
 - `frontend` (React + Vite, servi par Nginx) — interface utilisateur.
 - `gateway` (Nginx) — point d'entrée unique sur le port 80, route `/api/auth`, `/api/users`, `/api/books`, `/api/loans` vers le microservice correspondant et `/` vers le frontend.
-- `jenkins` — pipeline CI/CD (voir plus bas).
+- `jenkins` — pipeline CI/CD (voir plus bas). Défini dans un fichier Compose séparé (`docker-compose.jenkins.yml`), volontairement en dehors de la stack applicative que le pipeline déploie (voir section Jenkins).
 
 ## Installation
 
@@ -41,23 +41,33 @@ Variables disponibles (voir `.env.example`) :
 
 ## Lancement avec Docker Compose
 
+L'application (bases, microservices, frontend, passerelle) et Jenkins sont deux fichiers Compose distincts, à lancer ensemble :
+
 ```bash
-docker compose up -d --build
+docker compose -f docker-compose.yml -f docker-compose.jenkins.yml up -d --build
 ```
 
 - Application : http://localhost
 - Jenkins : http://localhost:8080
 
+Pourquoi deux fichiers plutôt qu'un seul ? Le pipeline Jenkins déploie l'application via `docker compose down && docker compose up -d` (voir section Jenkins) — s'il utilisait le même fichier que celui définissant Jenkins, chaque déploiement tenterait de redémarrer Jenkins lui-même depuis l'intérieur de son propre conteneur, avec des conflits de port quasi garantis. En les séparant, le pipeline ne touche jamais à `docker-compose.jenkins.yml` : `docker compose down`/`up -d` (sans `-f`) n'agissent que sur `docker-compose.yml`, l'application.
+
+Si vous ne voulez lancer que l'application, sans Jenkins :
+
+```bash
+docker compose up -d --build
+```
+
 Pour arrêter et supprimer les conteneurs (en gardant les données) :
 
 ```bash
-docker compose down
+docker compose -f docker-compose.yml -f docker-compose.jenkins.yml down
 ```
 
 Pour tout supprimer y compris les volumes de bases de données :
 
 ```bash
-docker compose down -v
+docker compose -f docker-compose.yml -f docker-compose.jenkins.yml down -v
 ```
 
 ## Comptes et rôles
@@ -73,7 +83,7 @@ Le `Jenkinsfile` définit 4 étapes exécutées dans le conteneur `jenkins` (qui
 1. **Checkout** — récupère le code depuis GitHub.
 2. **Build & Test** — installe les dépendances Python de chaque microservice et exécute `pytest`.
 3. **Build Docker Images** — `docker compose build`.
-4. **Deploy** — `docker compose down && docker compose up -d`.
+4. **Deploy** — `docker compose down && docker compose up -d`. Ces commandes n'utilisent volontairement pas `-f docker-compose.jenkins.yml` : elles ne redéploient que l'application (`docker-compose.yml`), jamais Jenkins lui-même.
 
 ### Configuration initiale de Jenkins
 
@@ -91,7 +101,8 @@ Après `docker compose up -d --build`, ouvrez `http://localhost:8080`, connectez
 ├── frontend/             # Application React
 ├── gateway/              # Configuration Nginx (reverse proxy)
 ├── jenkins/              # Image Jenkins avec Docker CLI
-├── docker-compose.yml    # Orchestration de tous les services
+├── docker-compose.yml         # Orchestration de l'application (bases, microservices, frontend, gateway)
+├── docker-compose.jenkins.yml # Jenkins, séparé de l'application (voir section Jenkins)
 ├── Jenkinsfile           # Pipeline CI/CD
 ├── .env.example          # Modèle des variables d'environnement (identifiants, secrets)
 └── docs/                 # Spécification, plan, captures d'écran

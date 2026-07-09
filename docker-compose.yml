@@ -88,25 +88,7 @@ services:
       - books-service
       - loans-service
 
-  jenkins:
-    build: ./jenkins
-    ports:
-      - "8080:8080"
-    environment:
-      JENKINS_ADMIN_USER: ${JENKINS_ADMIN_USER:-admin}
-      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:-adminpass123}
-      REPO_URL: ${REPO_URL:-https://github.com/Marlin241/Container_Virtualisation.git}
-    volumes:
-      - jenkins_home:/var/jenkins_home
-      - /var/run/docker.sock:/var/run/docker.sock
-    # GID of the host's "docker" group, needed so the jenkins user can use
-    # the mounted /var/run/docker.sock. Run "getent group docker" on your
-    # machine and set DOCKER_GID in .env if it isn't 989.
-    group_add:
-      - "${DOCKER_GID:-989}"
-
 volumes:
   users_db_data:
   books_db_data:
   loans_db_data:
-  jenkins_home:
