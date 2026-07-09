@@ -34,6 +34,7 @@ cp .env.example .env
 Variables disponibles (voir `.env.example`) :
 - `POSTGRES_USER` / `POSTGRES_PASSWORD` — identifiants partagés par les 3 bases PostgreSQL
 - `JWT_SECRET` — secret de signature des JWT, partagé par les 3 microservices
+- `ADMIN_EMAIL` / `ADMIN_PASSWORD` — identifiants du premier compte `PERSONNEL_ADMIN`, créé automatiquement au démarrage (voir section Comptes et rôles)
 - `DOCKER_GID` — GID du groupe `docker` de la machine hôte (voir section Dépannage)
 
 ## Lancement avec Docker Compose
@@ -59,7 +60,9 @@ docker compose down -v
 
 ## Comptes et rôles
 
-Créez un compte via `http://localhost/register`. Le rôle `PERSONNEL_ADMIN` donne accès à la gestion des livres et à la liste des utilisateurs ; les rôles `ETUDIANT` et `PROFESSEUR` peuvent emprunter/retourner des livres et consulter leur propre historique.
+Créez un compte via `http://localhost/register`. Le formulaire public ne propose que les rôles `ETUDIANT` et `PROFESSEUR` (et l'API rejette explicitement toute tentative de créer un compte `PERSONNEL_ADMIN` par ce biais) — ces deux rôles peuvent emprunter/retourner des livres et consulter leur propre historique.
+
+Le rôle `PERSONNEL_ADMIN` donne accès à la gestion des livres et à la liste des utilisateurs. Un premier compte admin est créé automatiquement au démarrage de `users-service`, avec les identifiants définis par `ADMIN_EMAIL`/`ADMIN_PASSWORD` dans `.env` (par défaut `admin@dit.sn` / `admin123` — **changez ce mot de passe dans `.env` avant tout déploiement réel**). Ce compte n'est créé que si aucun `PERSONNEL_ADMIN` n'existe déjà en base. Pour créer d'autres admins, connectez-vous avec un compte déjà admin et utilisez le bouton « Promouvoir en admin » sur la page Utilisateurs.
 
 ## Fonctionnement du pipeline Jenkins
 

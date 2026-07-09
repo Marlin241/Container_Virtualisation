@@ -4,14 +4,20 @@ from fastapi import Depends, FastAPI, HTTPException, status
 from sqlalchemy.orm import Session
 
 from . import models, schemas
-from .database import Base, engine, get_db
+from .database import Base, SessionLocal, engine, get_db
 from .deps import get_current_payload, require_role
 from .security import create_access_token, hash_password, verify_password
+from .seed import seed_admin
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        seed_admin(db)
+    finally:
+        db.close()
     yield
 
 
@@ -20,6 +26,12 @@ app = FastAPI(title="users-service", lifespan=lifespan)
 
 @app.post("/auth/register", response_model=schemas.UserOut, status_code=status.HTTP_201_CREATED)
 def register(payload: schemas.UserCreate, db: Session = Depends(get_db)):
+    if payload.role == models.UserRole.PERSONNEL_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot self-register as PERSONNEL_ADMIN",
+        )
+
     existing = db.query(models.User).filter(models.User.email == payload.email).first()
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
@@ -66,3 +78,18 @@ def read_user(user_id: int, payload: dict = Depends(get_current_payload), db: Se
 @app.get("/users", response_model=list[schemas.UserOut])
 def list_users(payload: dict = Depends(require_role("PERSONNEL_ADMIN")), db: Session = Depends(get_db)):
     return db.query(models.User).all()
+
+
+@app.patch("/users/{user_id}/promote", response_model=schemas.UserOut)
+def promote_to_admin(
+    user_id: int,
+    _: dict = Depends(require_role("PERSONNEL_ADMIN")),
+    db: Session = Depends(get_db),
+):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    user.role = models.UserRole.PERSONNEL_ADMIN
+    db.commit()
+    db.refresh(user)
+    return user

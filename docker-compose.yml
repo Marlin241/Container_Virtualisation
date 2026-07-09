@@ -46,6 +46,8 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@users-db:5432/users_db
       JWT_SECRET: ${JWT_SECRET:-devsecret}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@dit.sn}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
     depends_on:
       users-db:
         condition: service_healthy

@@ -59,3 +59,16 @@ def test_login_wrong_password_rejected(client):
 def test_login_unknown_email_rejected(client):
     response = client.post("/auth/login", json={"email": "nobody@dit.sn", "password": "secret123"})
     assert response.status_code == 401
+
+
+def test_register_rejects_personnel_admin_role(client):
+    response = client.post(
+        "/auth/register",
+        json={
+            "full_name": "Faux Admin",
+            "email": "fakeadmin@dit.sn",
+            "password": "secret123",
+            "role": "PERSONNEL_ADMIN",
+        },
+    )
+    assert response.status_code == 400
