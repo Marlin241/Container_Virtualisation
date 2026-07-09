@@ -3,6 +3,7 @@ import api from "../api/client";
 
 export default function LoansPage() {
   const [loans, setLoans] = useState([]);
+  const [error, setError] = useState("");
 
   async function loadLoans() {
     const response = await api.get("/loans");
@@ -14,13 +15,19 @@ export default function LoansPage() {
   }, []);
 
   async function handleReturn(id) {
-    await api.patch(`/loans/${id}/return`);
-    loadLoans();
+    setError("");
+    try {
+      await api.patch(`/loans/${id}/return`);
+      loadLoans();
+    } catch (err) {
+      setError("Retour impossible (emprunt déjà retourné ?)");
+    }
   }
 
   return (
     <div>
       <h1>Mes emprunts</h1>
+      {error && <p style={{ color: "red" }}>{error}</p>}
       <ul>
         {loans.map((loan) => (
           <li key={loan.id}>

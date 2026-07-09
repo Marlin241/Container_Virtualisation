@@ -50,8 +50,13 @@ export default function BooksPage() {
   }
 
   async function handleDelete(id) {
-    await api.delete(`/books/${id}`);
-    loadBooks();
+    setError("");
+    try {
+      await api.delete(`/books/${id}`);
+      loadBooks();
+    } catch (err) {
+      setError("Suppression impossible (livre actuellement emprunté ?)");
+    }
   }
 
   async function handleBorrow(id) {
