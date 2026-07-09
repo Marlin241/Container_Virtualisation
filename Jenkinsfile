@@ -33,7 +33,7 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                // Run from PROJECT_DIR (bind-mounted into the jenkins
+                // cd into PROJECT_DIR (bind-mounted into the jenkins
                 // container at this same absolute path, see
                 // docker-compose.jenkins.yml) rather than this build's own
                 // checkout workspace. Jenkins drives the HOST's Docker
@@ -41,11 +41,15 @@ pipeline {
                 // docker-compose.yml's relative bind mounts (e.g.
                 // ./gateway/nginx.conf) against real host paths - which the
                 // default Jenkins workspace (inside the jenkins_home named
-                // volume) is not.
-                dir(env.PROJECT_DIR) {
-                    sh 'docker compose down'
-                    sh 'docker compose up -d'
-                }
+                // volume) is not. A plain `cd` inside one sh step (rather
+                // than Pipeline's dir() step) avoids Jenkins trying to
+                // create its own tracking directory next to an external
+                // path it doesn't own.
+                sh '''
+                    cd "$PROJECT_DIR"
+                    docker compose down
+                    docker compose up -d
+                '''
             }
         }
     }
