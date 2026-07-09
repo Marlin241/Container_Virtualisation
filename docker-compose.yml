@@ -95,6 +95,7 @@ services:
     environment:
       JENKINS_ADMIN_USER: ${JENKINS_ADMIN_USER:-admin}
       JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:-adminpass123}
+      REPO_URL: ${REPO_URL:-https://github.com/Marlin241/Container_Virtualisation.git}
     volumes:
       - jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock

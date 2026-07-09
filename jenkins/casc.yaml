@@ -8,3 +8,21 @@ jenkins:
   authorizationStrategy:
     loggedInUsersCanDoAnything:
       allowAnonymousRead: false
+
+jobs:
+  - script: >
+      pipelineJob('bibliotheque-microservices') {
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote {
+                  url(System.getenv('REPO_URL') ?: 'https://github.com/Marlin241/Container_Virtualisation.git')
+                }
+                branch('*/main')
+              }
+            }
+            scriptPath('Jenkinsfile')
+          }
+        }
+      }

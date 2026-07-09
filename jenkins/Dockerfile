@@ -14,7 +14,7 @@ RUN apt-get update && \
 
 USER jenkins
 
-RUN jenkins-plugin-cli --plugins "configuration-as-code"
+RUN jenkins-plugin-cli --plugins "configuration-as-code job-dsl workflow-aggregator git"
 
 # Skip the interactive first-run setup wizard and boot straight into the
 # admin account defined by casc.yaml (itself populated from
