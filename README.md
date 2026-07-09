@@ -20,6 +20,22 @@ git clone <url-du-repo>
 cd Examen_Container_Visualisation
 ```
 
+## Configuration (identifiants et secrets)
+
+Tous les identifiants et secrets (mot de passe PostgreSQL, secret JWT, GID Docker pour Jenkins) sont lus depuis un fichier `.env` à la racine du projet — jamais codés en dur dans `docker-compose.yml`, et `.env` est ignoré par git (voir `.gitignore`).
+
+Des valeurs par défaut sûres pour un usage local/démo sont déjà intégrées dans `docker-compose.yml` (`postgres`/`postgres`, `devsecret`, GID `989`), donc **`docker compose up` fonctionne sans créer de `.env`**. Pour personnaliser (recommandé avant un déploiement réel) :
+
+```bash
+cp .env.example .env
+# puis éditez .env avec vos propres valeurs
+```
+
+Variables disponibles (voir `.env.example`) :
+- `POSTGRES_USER` / `POSTGRES_PASSWORD` — identifiants partagés par les 3 bases PostgreSQL
+- `JWT_SECRET` — secret de signature des JWT, partagé par les 3 microservices
+- `DOCKER_GID` — GID du groupe `docker` de la machine hôte (voir section Dépannage)
+
 ## Lancement avec Docker Compose
 
 ```bash
@@ -87,6 +103,7 @@ Jenkins doit être configuré manuellement la première fois :
 ├── jenkins/              # Image Jenkins avec Docker CLI
 ├── docker-compose.yml    # Orchestration de tous les services
 ├── Jenkinsfile           # Pipeline CI/CD
+├── .env.example          # Modèle des variables d'environnement (identifiants, secrets)
 └── docs/                 # Spécification, plan, captures d'écran
 ```
 
@@ -111,14 +128,10 @@ Si vous rencontrez une erreur de permission lors de l'exécution de commandes Do
 getent group docker
 ```
 
-Mettez à jour la valeur de `group_add` dans `docker-compose.yml` pour le service `jenkins` avec le GID obtenu :
+Définissez `DOCKER_GID` avec le GID obtenu dans votre fichier `.env` (créez-le depuis `.env.example` si ce n'est pas déjà fait) :
 
-```yaml
-services:
-  jenkins:
-    # ...
-    group_add:
-      - "VOTRE_GID_DOCKER"  # ex. "989" — remplacez par la valeur obtenue avec getent group docker
+```bash
+echo "DOCKER_GID=<gid obtenu ci-dessus>" >> .env
 ```
 
 Ensuite, redémarrez le conteneur :

@@ -3,12 +3,12 @@ services:
     image: postgres:16
     environment:
       POSTGRES_DB: users_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
       - users_db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -17,12 +17,12 @@ services:
     image: postgres:16
     environment:
       POSTGRES_DB: books_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
       - books_db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -31,12 +31,12 @@ services:
     image: postgres:16
     environment:
       POSTGRES_DB: loans_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
       - loans_db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -44,7 +44,7 @@ services:
   users-service:
     build: ./users-service
     environment:
-      DATABASE_URL: postgresql+psycopg2://postgres:postgres@users-db:5432/users_db
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@users-db:5432/users_db
       JWT_SECRET: ${JWT_SECRET:-devsecret}
     depends_on:
       users-db:
@@ -53,7 +53,7 @@ services:
   books-service:
     build: ./books-service
     environment:
-      DATABASE_URL: postgresql+psycopg2://postgres:postgres@books-db:5432/books_db
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@books-db:5432/books_db
       JWT_SECRET: ${JWT_SECRET:-devsecret}
     depends_on:
       books-db:
@@ -62,7 +62,7 @@ services:
   loans-service:
     build: ./loans-service
     environment:
-      DATABASE_URL: postgresql+psycopg2://postgres:postgres@loans-db:5432/loans_db
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@loans-db:5432/loans_db
       JWT_SECRET: ${JWT_SECRET:-devsecret}
       BOOKS_SERVICE_URL: http://books-service:8000
     depends_on:
@@ -95,9 +95,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     # GID of the host's "docker" group, needed so the jenkins user can use
     # the mounted /var/run/docker.sock. Run "getent group docker" on your
-    # machine and replace 989 below if it differs.
+    # machine and set DOCKER_GID in .env if it isn't 989.
     group_add:
-      - "989"
+      - "${DOCKER_GID:-989}"
 
 volumes:
   users_db_data:
