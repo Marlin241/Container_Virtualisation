@@ -13,3 +13,12 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 USER jenkins
+
+RUN jenkins-plugin-cli --plugins "configuration-as-code"
+
+# Skip the interactive first-run setup wizard and boot straight into the
+# admin account defined by casc.yaml (itself populated from
+# JENKINS_ADMIN_USER/JENKINS_ADMIN_PASSWORD, see docker-compose.yml/.env).
+ENV JAVA_OPTS="-Djenkins.install.runSetupWizard=false"
+ENV CASC_JENKINS_CONFIG=/usr/share/jenkins/casc.yaml
+COPY casc.yaml /usr/share/jenkins/casc.yaml

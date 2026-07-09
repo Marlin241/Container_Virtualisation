@@ -36,6 +36,7 @@ Variables disponibles (voir `.env.example`) :
 - `JWT_SECRET` — secret de signature des JWT, partagé par les 3 microservices
 - `ADMIN_EMAIL` / `ADMIN_PASSWORD` — identifiants du premier compte `PERSONNEL_ADMIN`, créé automatiquement au démarrage (voir section Comptes et rôles)
 - `DOCKER_GID` — GID du groupe `docker` de la machine hôte (voir section Dépannage)
+- `JENKINS_ADMIN_USER` / `JENKINS_ADMIN_PASSWORD` — identifiants du compte administrateur Jenkins, configurés automatiquement au démarrage (voir section Jenkins)
 
 ## Lancement avec Docker Compose
 
@@ -75,24 +76,19 @@ Le `Jenkinsfile` définit 4 étapes exécutées dans le conteneur `jenkins` (qui
 
 ### Configuration initiale de Jenkins
 
-Jenkins doit être configuré manuellement la première fois :
+L'assistant d'installation interactif est désactivé (Jenkins Configuration as Code, voir `jenkins/casc.yaml`) : Jenkins démarre directement avec un compte administrateur prêt à l'emploi, dont les identifiants viennent de `.env` (`JENKINS_ADMIN_USER`/`JENKINS_ADMIN_PASSWORD`, par défaut `admin` / `adminpass123` — **changez ce mot de passe dans `.env` avant tout déploiement réel**).
 
-1. Après `docker compose up -d --build`, récupérez le mot de passe administrateur initial :
-   ```bash
-   docker compose exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
-   ```
+1. Après `docker compose up -d --build`, ouvrez `http://localhost:8080` et connectez-vous directement avec ces identifiants (aucun assistant, aucun mot de passe à récupérer dans les logs).
 
-2. Ouvrez `http://localhost:8080` dans votre navigateur.
-
-3. Collez le mot de passe et terminez l'assistant d'installation (installez les plugins suggérés).
-
-4. Créez un job de type "Pipeline" avec les paramètres suivants :
+2. Créez un job de type "Pipeline" avec les paramètres suivants :
    - **Definition** : "Pipeline script from SCM"
    - **SCM** : Git
    - **Repository URL** : l'URL de ce dépôt
    - **Script Path** : `Jenkinsfile` (racine du dépôt)
 
-5. Déclenchez une première exécution manuellement via l'interface Jenkins.
+3. Déclenchez une première exécution manuellement via l'interface Jenkins.
+
+La création du job Pipeline lui-même reste une étape manuelle (non automatisée par Configuration as Code dans cette version).
 
 ## Structure du projet
 
