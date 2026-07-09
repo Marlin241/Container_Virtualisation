@@ -24,7 +24,7 @@ cd Examen_Container_Visualisation
 
 Tous les identifiants et secrets (mot de passe PostgreSQL, secret JWT, GID Docker pour Jenkins) sont lus depuis un fichier `.env` à la racine du projet — jamais codés en dur dans `docker-compose.yml`, et `.env` est ignoré par git (voir `.gitignore`).
 
-Des valeurs par défaut sûres pour un usage local/démo sont déjà intégrées dans `docker-compose.yml` (`postgres`/`postgres`, `devsecret`, GID `989`), donc **`docker compose up` fonctionne sans créer de `.env`**. Pour personnaliser (recommandé avant un déploiement réel) :
+Des valeurs par défaut sûres pour un usage local/démo sont déjà intégrées dans `docker-compose.yml` (`postgres`/`postgres`, `devsecret`), donc **l'application seule (`docker-compose.yml`) fonctionne sans créer de `.env`**. Jenkins (`docker-compose.jenkins.yml`), en revanche, **requiert un `.env`** avec au minimum `PROJECT_DIR` défini (voir plus bas) — sans quoi il refuse de démarrer. Pour personnaliser (recommandé avant un déploiement réel, et nécessaire pour Jenkins) :
 
 ```bash
 cp .env.example .env
@@ -38,6 +38,7 @@ Variables disponibles (voir `.env.example`) :
 - `DOCKER_GID` — GID du groupe `docker` de la machine hôte (voir section Dépannage)
 - `JENKINS_ADMIN_USER` / `JENKINS_ADMIN_PASSWORD` — identifiants du compte administrateur Jenkins, configurés automatiquement au démarrage (voir section Jenkins)
 - `REPO_URL` — URL HTTPS du dépôt Git, utilisée pour créer automatiquement le job Pipeline Jenkins (voir section Jenkins)
+- `PROJECT_DIR` — **requis pour Jenkins**, chemin absolu de ce dépôt sur la machine hôte (`pwd` depuis la racine du projet). Voir section Jenkins.
 
 ## Lancement avec Docker Compose
 
@@ -83,13 +84,18 @@ Le `Jenkinsfile` définit 4 étapes exécutées dans le conteneur `jenkins` (qui
 1. **Checkout** — récupère le code depuis GitHub.
 2. **Build & Test** — installe les dépendances Python de chaque microservice et exécute `pytest`.
 3. **Build Docker Images** — `docker compose build`.
-4. **Deploy** — `docker compose down && docker compose up -d`. Ces commandes n'utilisent volontairement pas `-f docker-compose.jenkins.yml` : elles ne redéploient que l'application (`docker-compose.yml`), jamais Jenkins lui-même.
+4. **Deploy** — `cd "$PROJECT_DIR" && docker compose down && docker compose up -d`.
+
+Deux détails d'implémentation du **Deploy**, tous deux nécessaires parce que Jenkins pilote le Docker de l'hôte via un socket monté (`/var/run/docker.sock`, docker-outside-of-docker) plutôt que d'avoir son propre Docker isolé :
+
+- Les commandes n'utilisent volontairement pas `-f docker-compose.jenkins.yml` : elles ne redéploient que l'application (`docker-compose.yml`), jamais Jenkins lui-même — sinon chaque déploiement tenterait de redémarrer le conteneur Jenkins qui exécute le pipeline.
+- Le `cd "$PROJECT_DIR"` (au lieu du checkout habituel de Jenkins) est nécessaire car le daemon Docker de l'hôte résout les chemins relatifs de `docker-compose.yml` (ex. `./gateway/nginx.conf`) par rapport au répertoire **réel sur l'hôte** depuis lequel `docker compose` est invoqué — pas par rapport à l'espace de travail interne du conteneur Jenkins, qui n'existe pas sur le système de fichiers de l'hôte. `PROJECT_DIR` (variable `.env`, **requise**) est monté dans le conteneur Jenkins au même chemin absolu que sur l'hôte (voir `docker-compose.jenkins.yml`), ce qui permet à `docker compose` d'y résoudre correctement tous les chemins relatifs.
 
 ### Configuration initiale de Jenkins
 
 Tout est automatisé via Jenkins Configuration as Code (voir `jenkins/casc.yaml`) : l'assistant d'installation interactif est désactivé, le compte administrateur est créé automatiquement (`JENKINS_ADMIN_USER`/`JENKINS_ADMIN_PASSWORD` dans `.env`, par défaut `admin` / `adminpass123` — **changez ce mot de passe dans `.env` avant tout déploiement réel**), et le job Pipeline `bibliotheque-microservices` est créé automatiquement au démarrage, configuré pour lire le `Jenkinsfile` depuis `REPO_URL` (variable `.env`, doit être une URL HTTPS accessible sans identifiants — dépôt public).
 
-Après `docker compose up -d --build`, ouvrez `http://localhost:8080`, connectez-vous avec les identifiants ci-dessus, et le job `bibliotheque-microservices` est déjà prêt — aucune configuration manuelle. Il ne reste qu'à déclencher une première exécution ("Build Now") depuis l'interface Jenkins.
+Après `docker compose -f docker-compose.yml -f docker-compose.jenkins.yml up -d --build`, ouvrez `http://localhost:8080`, connectez-vous avec les identifiants ci-dessus, et le job `bibliotheque-microservices` est déjà prêt — aucune configuration manuelle. Il ne reste qu'à déclencher une première exécution ("Build Now") depuis l'interface Jenkins.
 
 ## Structure du projet
 
@@ -138,12 +144,12 @@ echo "DOCKER_GID=<gid obtenu ci-dessus>" >> .env
 Ensuite, redémarrez le conteneur :
 
 ```bash
-docker compose down
-docker compose up -d --build
+docker compose -f docker-compose.yml -f docker-compose.jenkins.yml down
+docker compose -f docker-compose.yml -f docker-compose.jenkins.yml up -d --build
 ```
 
 ## Limitations connues
 
 L'endpoint interne `PATCH /books/{id}/availability` (utilisé par loans-service pour ajuster le stock lors d'emprunts/retours) n'est protégé que par un JWT valide quelconque et n'est pas restreint aux appels en provenance du service loans uniquement. Tout utilisateur authentifié pourrait théoriquement appeler cet endpoint directement. Une implémentation future pourrait utiliser une authentification inter-services plus robuste (ex : mTLS ou tokens de service dédiés).
 
-L'étape `Deploy` du `Jenkinsfile` (`docker compose down && docker compose up -d`) s'exécute depuis le conteneur `jenkins`, qui pilote le daemon Docker de l'hôte via le socket monté `/var/run/docker.sock` (docker-outside-of-docker). Or le répertoire de travail utilisé pour cette commande est un chemin interne au conteneur Jenkins (ex. `/var/jenkins_home/workspace/<job>/...`), qui n'existe pas sur le système de fichiers réel de l'hôte que le daemon utilise pour résoudre les montages relatifs (ex. `./gateway/nginx.conf` dans `docker-compose.yml`). En conséquence, ces montages relatifs peuvent ne pas se résoudre correctement lorsque `docker compose up -d` est lancé de cette manière. Une correction robuste nécessiterait de monter le checkout de l'hôte dans le conteneur Jenkins à un chemin absolu identique (et de configurer le workspace du job Jenkins en conséquence) — hors périmètre pour cet exercice d'une semaine.
+`PROJECT_DIR` doit correspondre exactement au chemin absolu réel de ce dépôt sur la machine hôte (voir section Jenkins). Si vous déplacez le dépôt après coup, mettez à jour `PROJECT_DIR` dans `.env` et relancez `docker compose -f docker-compose.yml -f docker-compose.jenkins.yml up -d --build` — sinon l'étape `Deploy` du pipeline échouera à nouveau à résoudre les montages relatifs de `docker-compose.yml`.
