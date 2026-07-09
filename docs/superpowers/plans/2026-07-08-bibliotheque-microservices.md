@@ -1170,7 +1170,7 @@ def test_availability_update_unknown_book_returns_404(client, auth_header):
 Run: `pytest tests/test_books.py -v`
 Expected: the 4 new tests FAIL with 404 (route doesn't exist).
 
-- [ ] **Step 3: Implement — add to `app/main.py`** (at the end of the file)
+- [ ] **Step 3: Implement — add to `app/main.py`** (at the end of the file; also add `from sqlalchemy import update` to the existing import block at the top of the file)
 
 ```python
 @app.patch("/books/{book_id}/availability", response_model=schemas.BookOut)
@@ -1183,14 +1183,26 @@ def update_availability(
     book = db.query(models.Book).filter(models.Book.id == book_id).first()
     if not book:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
-    new_available = book.available_copies + payload.delta
-    if new_available < 0 or new_available > book.total_copies:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Book not available")
-    book.available_copies = new_available
+
+    result = db.execute(
+        update(models.Book)
+        .where(
+            models.Book.id == book_id,
+            models.Book.available_copies + payload.delta >= 0,
+            models.Book.available_copies + payload.delta <= models.Book.total_copies,
+        )
+        .values(available_copies=models.Book.available_copies + payload.delta)
+    )
     db.commit()
+
+    if result.rowcount == 0:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Book not available")
+
     db.refresh(book)
     return book
 ```
+
+Note: this uses a single atomic conditional `UPDATE ... WHERE ...` rather than a read-check-write, and requires `from sqlalchemy import update` added to `app/main.py`'s imports. A naive read-check-write (fetch `available_copies`, compute the new value in Python, check bounds, then commit) has a TOCTOU race under concurrent requests: two simultaneous borrows of the last copy of the same book could both read `available_copies=1`, both compute a valid new value, and both commit — silently overbooking instead of the second one correctly getting a 409. Folding the bounds check into the `UPDATE`'s `WHERE` clause makes the check-and-write atomic at the database level, closing that window on both SQLite (tests) and Postgres (production).
 
 - [ ] **Step 4: Run tests to verify they pass**
 
